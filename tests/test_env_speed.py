@@ -1,4 +1,4 @@
-from robocasa.scripts.bench_speed import run_bench, get_args
+from lerobocasa.scripts.bench_speed import run_bench, get_args
 
 import argparse
 import numpy as np

@@ -8,15 +8,15 @@ import yaml
 from datetime import datetime
 from termcolor import colored
 
-import robocasa
-from robocasa.scripts.browse_mjcf_model import read_model
-import robocasa.macros as macros
-from robocasa.models.fixtures.fixture import FixtureType
+import lerobocasa
+from lerobocasa.scripts.browse_mjcf_model import read_model
+import lerobocasa.macros as macros
+from lerobocasa.models.fixtures.fixture import FixtureType
 from robosuite.wrappers import VisualizationWrapper
 
-from robocasa.utils.env_utils import create_env, run_random_rollouts
-from robocasa.scripts.collect_demos import collect_human_trajectory
-from robocasa.models.scenes.scene_registry import (
+from lerobocasa.utils.env_utils import create_env, run_random_rollouts
+from lerobocasa.scripts.collect_demos import collect_human_trajectory
+from lerobocasa.models.scenes.scene_registry import (
     get_layout_path,
     get_style_path,
     LAYOUT_GROUPS_TO_IDS,
@@ -210,7 +210,7 @@ if __name__ == "__main__":
         if fixture_list is None:
             continue
         yaml_path = os.path.join(
-            robocasa.__path__[0],
+            lerobocasa.__path__[0],
             "models/assets/fixtures/fixture_registry",
             "cabinet.yaml",
         )

@@ -2,8 +2,8 @@ import argparse
 from termcolor import colored
 import traceback
 
-from robocasa.utils.dataset_registry import TARGET_TASKS
-from robocasa.utils.env_utils import create_env, run_random_rollouts
+from lerobocasa.utils.dataset_registry import TARGET_TASKS
+from lerobocasa.utils.env_utils import create_env, run_random_rollouts
 
 
 def test_tasks_validity(

@@ -5,7 +5,7 @@ import numpy as np
 from lxml import etree as ET
 
 import mujoco
-import robocasa
+import lerobocasa
 import robosuite
 from robosuite import load_controller_config
 from termcolor import colored
@@ -88,7 +88,7 @@ class TestEnvDeterminism(unittest.TestCase):
                 np.testing.assert_allclose(pos_1, pos_2, atol=1e-7)
                 np.testing.assert_allclose(quat_1, quat_2, atol=1e-7)
 
-        envs = sorted(robocasa.ALL_KITCHEN_ENVIRONMENTS)
+        envs = sorted(lerobocasa.ALL_KITCHEN_ENVIRONMENTS)
 
         for i, env in enumerate(envs):
             if env in self.skip_envs or env.startswith("MG_"):

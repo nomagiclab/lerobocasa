@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lerobocasa"
+version = "0.1.0"
+requires-python = ">=3.11, <3.12"
+dependencies = [
+    "robosuite",
+    "h5py",
+    "imageio",
+    "pyyaml",
+    "gymnasium>=1.2.3",
+    "lxml>=6.0.2",
+    "mujoco==3.3.1",
+    "numpy==2.2.5",
+    "hid>=1.0.9",
+    "torch>=2.11.0",
+]
+
+[tool.uv.sources]
+robosuite = { path = ".dep/robosuite", editable = true }
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["lerobocasa*"]

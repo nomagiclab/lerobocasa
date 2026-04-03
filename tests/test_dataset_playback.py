@@ -3,12 +3,12 @@ from termcolor import colored
 import argparse
 import os
 
-from robocasa.scripts.playback_dataset import playback_dataset
-from robocasa.utils.dataset_registry import (
+from lerobocasa.scripts.playback_dataset import playback_dataset
+from lerobocasa.utils.dataset_registry import (
     ATOMIC_TASK_DATASETS,
     COMPOSITE_TASK_DATASETS,
 )
-from robocasa.utils.dataset_registry_utils import get_ds_path
+from lerobocasa.utils.dataset_registry_utils import get_ds_path
 
 
 class TestTasksValidity(unittest.TestCase):

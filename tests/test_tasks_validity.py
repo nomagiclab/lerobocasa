@@ -2,8 +2,8 @@ import argparse
 from termcolor import colored
 import traceback
 
-from robocasa.environments import ALL_KITCHEN_ENVIRONMENTS
-from robocasa.utils.env_utils import create_env, run_random_rollouts
+from lerobocasa.environments import ALL_KITCHEN_ENVIRONMENTS
+from lerobocasa.utils.env_utils import create_env, run_random_rollouts
 
 
 def test_tasks_validity(

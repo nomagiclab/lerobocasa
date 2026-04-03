@@ -4,8 +4,8 @@ import tqdm
 import traceback
 import argparse
 
-from robocasa.scripts.browse_mjcf_model import read_model
-import robocasa
+from lerobocasa.scripts.browse_mjcf_model import read_model
+import lerobocasa
 
 
 def find_all_xml_files(directory):
@@ -59,8 +59,8 @@ if __name__ == "__main__":
     if args.directory is not None:
         get_load_time_stats(args.directory)
     else:
-        objects_path = os.path.join(robocasa.__path__[0], "models/assets/objects")
-        fixtures_path = os.path.join(robocasa.__path__[0], "models/assets/fixtures")
+        objects_path = os.path.join(lerobocasa.__path__[0], "models/assets/objects")
+        fixtures_path = os.path.join(lerobocasa.__path__[0], "models/assets/fixtures")
         objaverse_path = os.path.join(objects_path, "objaverse")
 
         for fixture_type in tqdm.tqdm(os.listdir(fixtures_path)):
