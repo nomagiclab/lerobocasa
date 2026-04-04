@@ -7,10 +7,10 @@ import tyro
 from lerobocasa.launch.common import make_robocasa_env_from_meta
 from lerobocasa.launch.common import reset_to
 from lerobocasa.launch.common import sleep_to_maintain_rate
-from lerobocasa.launch.replay_policy_rpc import PolicyClient
+from lerobocasa.launch.policy_rpc import PolicyClient
 
 
-class ReplaySimulationClient:
+class SimulationClient:
     def __init__(
         self,
         policy_host: str,
@@ -118,7 +118,7 @@ class Args:
 
 def main() -> None:
     args = tyro.cli(Args)
-    node = ReplaySimulationClient(
+    node = SimulationClient(
         policy_host=args.policy_host,
         policy_port=args.policy_port,
         policy_api_key=args.policy_api_key,
