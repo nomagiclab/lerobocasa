@@ -2,9 +2,6 @@ from lerobocasa.utils.dataset_registry import (
     ATOMIC_TASK_DATASETS,
     COMPOSITE_TASK_DATASETS,
 )
-from lerobocasa.scripts.dataset_scripts.playback_dataset_hdf5 import (
-    get_env_metadata_from_dataset,
-)
 from robosuite.controllers import load_composite_controller_config
 from robosuite.utils.transform_utils import rotate_2d_point
 import robosuite.utils.transform_utils as T

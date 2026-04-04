@@ -36,18 +36,16 @@ python -m robocasa.demos.demo_kitchen_scenes
 ```
 
 -------
-### Play back sample demonstrations of tasks
-Select a task and the script will render a human collected demonstration from our [datasets](../datasets/datasets_overview.html). Rendering can either be on-screen or off-screen as a video:
+### Replay recorded datasets (server-client)
+Run replay in two terminals using the policy server <-> simulation client flow:
+
 ```
-python -m robocasa.demos.demo_tasks
+python examples/replay_policy_server.py --dataset_repo_id robotgeneralist/PickPlaceCounterToCabinet_pretrain --port 8000
 ```
 
-<div class="admonition note">
-<p class="admonition-title">Off-screen rendering</p>
-
-You can render videos of the demos off-screen by adding the `--render_offscreen` flag. Mac users will need to run the command as `python` instead of `mjpython`.
-
-</div>
+```
+python -m lerobocasa.launch.simulation_client --policy-port 8000
+```
 
 -------
 ### Explore library of 3200+ objects
