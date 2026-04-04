@@ -94,10 +94,20 @@ run_random_rollouts(
 )
 ```
 
-### Play back sample demonstrations of tasks
-Select a task and play back a sample demonstration for the selected task:
+### Replay recorded datasets (server-client)
+Run replay in two terminals using the policy server <-> simulation client flow.
+
+Terminal 1 (start policy server):
 ```
-uv run python -m lerobocasa.demos.demo_tasks
+uv run --with lerobot examples/replay_policy_server.py \
+  --dataset_repo_id robotgeneralist/PickPlaceCounterToCabinet_pretrain \
+  --port 8000
+```
+
+Terminal 2 (start simulation client):
+```
+uv run python -m lerobocasa.launch.simulation_client \
+  --policy-port 8000
 ```
 
 ### Explore kitchen scenes

@@ -162,8 +162,12 @@ To get dataset statistics (filter keys, objects, task language, scenes):
 python robocasa/scripts/get_dataset_info.py --dataset <ds-path>
 ```
 
-You can visualize dataset videos by looking at the `videos` folder under each lerobot dataset directory. To visualize a dataset and save a video:
+You can visualize dataset videos by looking at the `videos` folder under each lerobot dataset directory.
+To replay trajectories in simulation, run:
 ```
-python robocasa/scripts/playback_dataset.py --n 10 --dataset <ds-path>
+python examples/replay_policy_server.py --dataset_repo_id <hf-dataset-repo-id> --port 8000
 ```
-This will save a video of 10 random demonstrations in the same path as the dataset. You can play the full dataset by removing the `--n` flag.
+and in a second terminal:
+```
+python -m lerobocasa.launch.simulation_client --policy-port 8000
+```
