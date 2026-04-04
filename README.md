@@ -15,39 +15,62 @@ This guide contains information about installation and setup. Please refer to th
 
 -------
 ## Installation
-RoboCasa works across all major computing platforms. The easiest way to set up is through the [Anaconda](https://www.anaconda.com/) package management system. Follow the instructions below to install:
-1. Set up conda environment:
+`LeRoboCasa` is a forked version of [`RoboCasa`](https://robocasa.ai),
+maintained with a devcontainer-first workflow.
+The container provisions the right system dependencies,
+runs `uv sync`, and configures macros automatically.
 
-   ```sh
-   conda create -c conda-forge -n robocasa python=3.11
-   ```
-2. Activate conda environment:
-   ```sh
-   conda activate robocasa
-   ```
-3. Clone and setup robosuite dependency (**important: use the master branch!**):
+### Dev Container Setup
 
-   ```sh
-   git clone https://github.com/ARISE-Initiative/robosuite
-   cd robosuite
-   pip install -e .
-   ```
-4. Clone and setup this repo:
+You have to install docker to be able to use the container setup.
 
-   ```sh
-   cd ..
-   git clone https://github.com/robocasa/robocasa
-   cd robocasa
-   pip install -e .
-   pip install pre-commit; pre-commit install           # Optional: set up code formatter.
+#### Option A: VS Code Dev Containers
+1. Open this repository in VS Code.
+2. Run the command `Dev Containers: Reopen in Container`.
+3. Wait for container setup to complete (`.devcontainer/post-create.sh` runs automatically).
+4. Open the integrated terminal to enter the container shell.
 
-   (optional: if running into issues with numba/numpy, run: conda install -c numba numba=0.56.4 -y)
-   ```
-5. Install the package and download assets:
-   ```sh
-   python -m robocasa.scripts.setup_macros              # Set up system variables.
-   python -m robocasa.scripts.download_kitchen_assets   # Caution: Assets to be downloaded are around 10GB.
-   ```
+#### Option B: Devcontainer CLI
+Build and start the container from the repository root:
+
+```sh
+devcontainer up --remove-existing-container --workspace-folder .
+```
+
+Run:
+
+```sh
+devcontainer exec --workspace-folder . -- bash -l
+```
+
+to enter the container shell.
+
+### Lite display in browser (desktop-lite / noVNC)
+The devcontainer exposes a browser desktop at port `6080`.
+
+1. Open `http://localhost:6080` in your browser.
+2. If you are using VS Code, you can also open the forwarded `6080` port from the Ports panel.
+
+Use Chrome, Edge, or Firefox. Safari is not supported for this display workflow.
+
+### Veryfing the installation
+
+After the container is up, you can run demos with:
+
+```sh
+uv run python -m lerobocasa.demos.demo_kitchen_scenes
+```
+
+After selecting options in the terminal,
+a window with a scene should pop up on the desktop in the web browser.
+
+### Asset setup
+If you need to force setup steps manually inside the container:
+
+```sh
+uv run python -m lerobocasa.scripts.setup_macros
+uv run python -m lerobocasa.scripts.download_kitchen_assets
+```
 
 -------
 ## Basic Usage
@@ -56,11 +79,11 @@ RoboCasa works across all major computing platforms. The easiest way to set up i
 You can create environments using gym wrappers and run rollouts:
 ```py
 import gymnasium as gym
-import robocasa
-from robocasa.utils.env_utils import run_random_rollouts
+import lerobocasa
+from lerobocasa.utils.env_utils import run_random_rollouts
 
 env = gym.make(
-    "robocasa/PickPlaceCounterToCabinet",
+   "lerobocasa/PickPlaceCounterToCabinet",
     split="pretrain", # use 'pretrain' or 'target' kitchen scenes and objects
     seed=0 # seed environment as needed. set seed=None to run unseeded
 )
@@ -72,32 +95,30 @@ run_random_rollouts(
 ```
 
 ### Play back sample demonstrations of tasks
-**(Mac users: for these scripts, prepend the "python" command with "mj": `mjpython ...`)**
-
 Select a task and play back a sample demonstration for the selected task:
 ```
-python -m robocasa.demos.demo_tasks
+uv run python -m lerobocasa.demos.demo_tasks
 ```
 
 ### Explore kitchen scenes
 Explore 2500+ kitchen scenes:
 ```
-python -m robocasa.demos.demo_kitchen_scenes
+uv run python -m lerobocasa.demos.demo_kitchen_scenes
 ```
 
 ### Explore library of 2500+ objects
 View and interact with both human-designed and AI-generated objects:
 ```
-python -m robocasa.demos.demo_objects
+uv run python -m lerobocasa.demos.demo_objects
 ```
 Note: By default, this demo shows objaverse objects. To view AI-generated objects, add the flag `--obj_types aigen`.
 
 ### Teleoperate the robot
 Control the robot directly, either through a keyboard controller or spacemouse. This script renders the robot semi-translucent in order to minimize occlusions and enable better visibility.
 ```
-python -m robocasa.demos.demo_teleop
+uv run python -m lerobocasa.demos.demo_teleop
 ```
-Note: If using SpaceMouse, you may need to modify the product ID to your appropriate model, setting `SPACEMOUSE_PRODUCT_ID` in `robocasa/macros_private.py`.
+Note: If using SpaceMouse, you may need to modify the product ID to your appropriate model, setting `SPACEMOUSE_PRODUCT_ID` in `lerobocasa/macros_private.py`.
 
 -------
 ## Tasks, datasets, policy learning, and additional use cases
