@@ -1,8 +1,6 @@
 import json
 import time
-from pathlib import Path
 
-import numpy as np
 import robosuite
 
 
@@ -10,30 +8,6 @@ def sleep_to_maintain_rate(start_time: float, hz: float) -> None:
     sleep_time = (1.0 / hz) - (time.time() - start_time)
     if sleep_time > 0:
         time.sleep(sleep_time)
-
-
-def load_episode_initial_state(dataset_dir: Path, episode_index: int) -> dict:
-    import lerobocasa.utils.lerobot_utils as LU
-
-    states = LU.get_episode_states(dataset_dir, episode_index)
-    return {
-        "states": states[0],
-        "model": LU.get_episode_model_xml(dataset_dir, episode_index),
-        "ep_meta": json.dumps(LU.get_episode_meta(dataset_dir, episode_index)),
-    }
-
-
-def load_episode_states(dataset_dir: Path, episode_index: int) -> np.ndarray:
-    import lerobocasa.utils.lerobot_utils as LU
-
-    return LU.get_episode_states(dataset_dir, episode_index)
-
-
-def make_robocasa_env(dataset_dir: Path, has_renderer: bool):
-    import lerobocasa.utils.lerobot_utils as LU
-
-    env_meta = LU.get_env_metadata(dataset_dir)
-    return make_robocasa_env_from_meta(env_meta=env_meta, has_renderer=has_renderer)
 
 
 def make_robocasa_env_from_meta(env_meta: dict, has_renderer: bool):
