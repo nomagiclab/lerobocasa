@@ -4,6 +4,8 @@ import time
 from dotenv import load_dotenv
 import tyro
 import numpy as np
+from pynput.keyboard import Key
+from pynput.keyboard import Listener
 
 from lerobocasa.launch.common import make_robocasa_env_from_meta
 from lerobocasa.launch.common import reset_to
@@ -29,6 +31,7 @@ class SimulationClient:
         if env_meta is None:
             raise RuntimeError("Policy server did not provide env_meta")
         self.env = make_robocasa_env_from_meta(env_meta=env_meta, has_renderer=render)
+        self._record_toggle_hotkey = _RecordToggleHotkey()
 
     def _build_action_request(self, episode_index: int, step_index: int) -> dict:
         return {
@@ -51,7 +54,7 @@ class SimulationClient:
 
         print(
             f"Running episode {episode_index:06d}. "
-            "Press Enter to start/stop recording at any time."
+            "Press Enter to start/stop recording at any time (viewer focus is fine)."
         )
 
         step_index = 0
@@ -70,7 +73,7 @@ class SimulationClient:
             done = bool(result["done"])
 
             for action in actions:
-                if _enter_pressed_nonblocking():
+                if self._record_toggle_hotkey.consume_toggle_request():
                     if not recording_active:
                         recording_active = True
                         recording_start_step = step_index
@@ -144,6 +147,7 @@ class SimulationClient:
             episode_index += 1
 
     def close(self) -> None:
+        self._record_toggle_hotkey.close()
         self.policy.close()
         self.env.close()
 
@@ -162,16 +166,24 @@ class Args:
     """Render with on-screen MuJoCo viewer"""
 
 
-def _enter_pressed_nonblocking() -> bool:
-    import select
-    import sys
+class _RecordToggleHotkey:
+    def __init__(self) -> None:
+        self._pending_toggles = 0
+        self._listener = Listener(on_release=self._on_release)
+        self._listener.start()
 
-    readable, _, _ = select.select([sys.stdin], [], [], 0.0)
-    if not readable:
-        return False
+    def _on_release(self, key) -> None:
+        if key == Key.enter:
+            self._pending_toggles += 1
 
-    line = sys.stdin.readline()
-    return line.strip() == ""
+    def consume_toggle_request(self) -> bool:
+        if self._pending_toggles <= 0:
+            return False
+        self._pending_toggles -= 1
+        return True
+
+    def close(self) -> None:
+        self._listener.stop()
 
 
 def main() -> None:
