@@ -37,17 +37,14 @@ Note: by default this demo shows objaverse objects. To view AI-generated objects
 
 -------
 ### Teleoperate the robot
-Control the robot directly through the simulation client. Start a policy server (or dummy server), then run simulation client and toggle teleoperation with `t`. Recording is toggled with `Enter`.
+Control the robot directly through the simulation node. Toggle teleoperation with `t`. Recording is toggled with `Enter`. Policy connection is toggled with `p`.
 
-Terminal 1:
+Terminal:
 ```
-python examples/dummy_policy_server.py --port 8000
+python -m lerobocasa.launch.simulation_node --policy-port 8000
 ```
 
-Terminal 2:
-```
-python -m lerobocasa.launch.simulation_client --policy-port 8000
-```
+When `p` is pressed, the node attempts to connect to the configured policy server.
 
 Note: If using spacemouse: you may need to modify the product ID to your appropriate model, setting `SPACEMOUSE_PRODUCT_ID` in `lerobocasa/macros_private.py`.
 

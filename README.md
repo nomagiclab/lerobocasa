@@ -117,7 +117,7 @@ uv run --with lerobot examples/replay_policy_server.py \
 
 Terminal 2 (start simulation client):
 ```
-uv run python -m lerobocasa.launch.simulation_client \
+uv run python -m lerobocasa.launch.simulation_node \
   --policy-port 8000
 ```
 
@@ -138,18 +138,15 @@ uv run python -m lerobocasa.demos.demo_objects
 ```
 Note: By default, this demo shows objaverse objects. To view AI-generated objects, add the flag `--obj_types aigen`.
 
-### Teleoperate and record with simulation client
-Run the dummy policy server and simulation client in two terminals. In the client, press `t` to toggle teleoperation and press `Enter` to start / stop recording.
+### Teleoperate and record with simulation node
+Run the simulation node directly. Press `t` to toggle teleoperation, press `Enter` to start / stop recording, and press `p` to connect or disconnect from a policy server.
 
-Terminal 1:
+Start simulation node:
 ```
-uv run python examples/dummy_policy_server.py --port 8000
+uv run python -m lerobocasa.launch.simulation_node --policy-port 8000
 ```
 
-Terminal 2:
-```
-uv run python -m lerobocasa.launch.simulation_client --policy-port 8000
-```
+When `p` is pressed, the node will attempt to connect to `--policy-host` / `--policy-port`.
 
 Note: If using SpaceMouse elsewhere, you may need to modify `SPACEMOUSE_PRODUCT_ID` in `lerobocasa/macros_private.py`.
 

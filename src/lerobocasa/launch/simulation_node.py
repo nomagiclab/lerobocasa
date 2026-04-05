@@ -1,4 +1,5 @@
 import dataclasses
+import json
 import time
 from copy import deepcopy
 
@@ -7,7 +8,9 @@ import tyro
 import numpy as np
 from pynput.keyboard import Key
 from pynput.keyboard import Listener
+from robosuite.controllers import load_composite_controller_config
 
+import lerobocasa  # noqa: F401  # Registers RoboCasa envs with robosuite.
 from lerobocasa.launch.common import make_robocasa_env_from_meta
 from lerobocasa.launch.common import reset_to
 from lerobocasa.launch.common import sleep_to_maintain_rate
@@ -15,9 +18,12 @@ from lerobocasa.launch.policy_rpc import PolicyClient
 from lerobocasa.launch.recording_io import save_recording
 
 
-class SimulationClient:
+class SimulationNode:
     def __init__(
         self,
+        env_name: str,
+        layout: int | None,
+        style: int | None,
         policy_host: str,
         policy_port: int,
         policy_api_key: str | None,
@@ -27,12 +33,28 @@ class SimulationClient:
         self.control_freq = control_freq
         self.render = render
 
-        self.policy = PolicyClient(host=policy_host, port=policy_port, api_key=policy_api_key)
-        env_meta = self.policy.metadata.get("env_meta")
-        if env_meta is None:
-            raise RuntimeError("Policy server did not provide env_meta")
-        self.env = make_robocasa_env_from_meta(env_meta=env_meta, has_renderer=render)
-        self._hotkeys = _ClientHotkeys()
+        self._policy_host = policy_host
+        self._policy_port = policy_port
+        self._policy_api_key = policy_api_key
+        self.policy: PolicyClient | None = None
+
+        controller_configs = load_composite_controller_config(robot="PandaOmron")
+        self._env_meta = {
+            "env_name": env_name,
+            "env_kwargs": {
+                "robots": "PandaOmron",
+                "controller_configs": controller_configs,
+                "layout_ids": layout,
+                "style_ids": style,
+                "translucent_robot": True,
+                "ignore_done": True,
+                "use_camera_obs": False,
+                "control_freq": control_freq,
+            },
+        }
+
+        self.env = make_robocasa_env_from_meta(env_meta=self._env_meta, has_renderer=render)
+        self._hotkeys = _NodeHotkeys()
         self._teleop_device = _create_keyboard_device(self.env)
         self._all_prev_gripper_actions = []
 
@@ -49,16 +71,63 @@ class SimulationClient:
             "episode_index": episode_index,
         }
 
-    def _run_episode(self, episode_index: int) -> None:
-        reset_result = self.policy.infer(self._build_reset_request(episode_index))
-        episode_initial_state = reset_result["initial_state"]
+    def _connect_policy(self) -> bool:
+        if self.policy is not None:
+            return True
 
-        reset_to(self.env, episode_initial_state)
+        try:
+            policy = PolicyClient(
+                host=self._policy_host,
+                port=self._policy_port,
+                api_key=self._policy_api_key,
+                wait_for_server=False,
+            )
+        except Exception as exc:
+            print(f"Failed to connect to policy server: {exc}")
+            return False
 
-        print(
-            f"Running episode {episode_index:06d}. "
-            "Enter toggles recording. T toggles teleoperation."
-        )
+        policy_env_meta = policy.metadata.get("env_meta")
+        if policy_env_meta is None:
+            policy.close()
+            print("Policy server did not provide env_meta. Connection aborted.")
+            return False
+
+        self._env_meta = policy_env_meta
+        self.policy = policy
+        print(f"Policy connected at ws://{self._policy_host}:{self._policy_port}")
+        return True
+
+    def _disconnect_policy(self) -> None:
+        if self.policy is None:
+            return
+        self.policy.close()
+        self.policy = None
+        print("Policy disconnected")
+
+    def _build_local_initial_state(self) -> dict:
+        ep_meta = self.env.get_ep_meta() if hasattr(self.env, "get_ep_meta") else {}
+        return {
+            "states": self.env.sim.get_state().flatten().copy(),
+            "model": self.env.model.get_xml(),
+            "ep_meta": json.dumps(ep_meta),
+        }
+
+    def _run_episode(self, episode_index: int) -> int:
+        if self.policy is not None:
+            reset_result = self.policy.infer(self._build_reset_request(episode_index))
+            episode_initial_state = reset_result["initial_state"]
+            reset_to(self.env, episode_initial_state)
+            print(
+                f"Running episode {episode_index:06d} with policy. "
+                "Enter toggles recording. T toggles teleoperation. P toggles policy connection."
+            )
+        else:
+            self.env.reset()
+            episode_initial_state = self._build_local_initial_state()
+            print(
+                f"Running local episode {episode_index:06d} without policy. "
+                "Enter toggles recording. T toggles teleoperation. P toggles policy connection."
+            )
 
         step_index = 0
         teleop_active = False
@@ -95,6 +164,24 @@ class SimulationClient:
                     recorded_actions = []
                     recording_initial_state = None
 
+            if self._hotkeys.consume_policy_toggle_request():
+                if self.policy is None:
+                    connected = self._connect_policy()
+                    if connected:
+                        if recording_active:
+                            self._save_recording(
+                                episode_index=episode_index,
+                                start_step=recording_start_step,
+                                initial_state=recording_initial_state,
+                                recorded_actions=recorded_actions,
+                            )
+                        print("Restarting episode from policy reset.")
+                        return episode_index
+                else:
+                    self._disconnect_policy()
+                    policy_actions = []
+                    policy_chunk_done = False
+
             if self._hotkeys.consume_teleop_toggle_request():
                 teleop_active = not teleop_active
                 policy_actions = []
@@ -113,13 +200,23 @@ class SimulationClient:
                 step_index += 1
                 continue
 
+            if self.policy is None:
+                action = np.zeros(self.env.action_dim, dtype=np.float32)
+                self._step_env(action)
+                if recording_active:
+                    recorded_actions.append(action)
+                step_index += 1
+                continue
+
             if not policy_actions:
                 request = self._build_action_request(
                     episode_index=episode_index,
                     step_index=step_index,
                 )
                 result = self.policy.infer(request)
-                policy_actions = [np.asarray(action, dtype=np.float32) for action in result["actions"]]
+                policy_actions = [
+                    np.asarray(action, dtype=np.float32) for action in result["actions"]
+                ]
                 policy_chunk_done = bool(result["done"])
 
                 if not policy_actions and policy_chunk_done:
@@ -131,7 +228,7 @@ class SimulationClient:
                             recorded_actions=recorded_actions,
                         )
                     print("Episode finished before manual stop.")
-                    break
+                    return episode_index + 1
 
                 if not policy_actions:
                     continue
@@ -151,7 +248,7 @@ class SimulationClient:
                         recorded_actions=recorded_actions,
                     )
                 print("Episode finished before manual stop.")
-                break
+                return episode_index + 1
 
     def _step_env(self, action: np.ndarray) -> None:
         start_time = time.time()
@@ -191,8 +288,13 @@ class SimulationClient:
 
         for arm in active_robot.arms:
             gripper_key = f"{arm}_gripper"
-            if gripper_key in action_dict and gripper_key in self._all_prev_gripper_actions[active_robot_idx]:
-                self._all_prev_gripper_actions[active_robot_idx][gripper_key] = action_dict[gripper_key]
+            if (
+                gripper_key in action_dict
+                and gripper_key in self._all_prev_gripper_actions[active_robot_idx]
+            ):
+                self._all_prev_gripper_actions[active_robot_idx][gripper_key] = action_dict[
+                    gripper_key
+                ]
 
         env_action = [
             robot.create_action_vector(self._all_prev_gripper_actions[i])
@@ -218,7 +320,7 @@ class SimulationClient:
         recording = {
             "episode_index": np.int32(episode_index),
             "start_step": np.int32(start_step),
-            "env_meta": self.policy.metadata.get("env_meta"),
+            "env_meta": self._env_meta,
             "initial_state": initial_state,
             "actions": actions_np,
             "control_freq": np.float32(self.control_freq),
@@ -229,23 +331,29 @@ class SimulationClient:
     def spin(self) -> None:
         episode_index = 0
         while True:
-            self._run_episode(episode_index)
-            episode_index += 1
+            episode_index = self._run_episode(episode_index)
 
     def close(self) -> None:
         self._hotkeys.close()
         if hasattr(self._teleop_device, "listener"):
             self._teleop_device.listener.stop()
-        self.policy.close()
+        if self.policy is not None:
+            self.policy.close()
         self.env.close()
 
 
 @dataclasses.dataclass
 class Args:
+    env_name: str = "PickPlaceCounterToCabinet"
+    """RoboCasa environment name for local simulation mode"""
+    layout: int | None = None
+    """Optional fixed layout id for local simulation mode"""
+    style: int | None = None
+    """Optional fixed style id for local simulation mode"""
     policy_host: str = "127.0.0.1"
-    """Replay policy server host"""
+    """Replay policy server host (used when connecting with key P)"""
     policy_port: int = 8000
-    """Replay policy server websocket port"""
+    """Replay policy server websocket port (used when connecting with key P)"""
     policy_api_key: str | None = None
     """Optional API key for replay policy server"""
     control_freq: float = 20.0
@@ -260,10 +368,11 @@ def _create_keyboard_device(env):
     return Keyboard(env=env, pos_sensitivity=4.0, rot_sensitivity=4.0)
 
 
-class _ClientHotkeys:
+class _NodeHotkeys:
     def __init__(self) -> None:
         self._pending_record_toggles = 0
         self._pending_teleop_toggles = 0
+        self._pending_policy_toggles = 0
         self._listener = Listener(on_release=self._on_release)
         self._listener.start()
 
@@ -271,8 +380,13 @@ class _ClientHotkeys:
         if key == Key.enter:
             self._pending_record_toggles += 1
             return
-        if hasattr(key, "char") and key.char is not None and key.char.lower() == "t":
-            self._pending_teleop_toggles += 1
+        if hasattr(key, "char") and key.char is not None:
+            lower = key.char.lower()
+            if lower == "t":
+                self._pending_teleop_toggles += 1
+                return
+            if lower == "p":
+                self._pending_policy_toggles += 1
 
     def consume_record_toggle_request(self) -> bool:
         if self._pending_record_toggles <= 0:
@@ -286,13 +400,22 @@ class _ClientHotkeys:
         self._pending_teleop_toggles -= 1
         return True
 
+    def consume_policy_toggle_request(self) -> bool:
+        if self._pending_policy_toggles <= 0:
+            return False
+        self._pending_policy_toggles -= 1
+        return True
+
     def close(self) -> None:
         self._listener.stop()
 
 
 def main() -> None:
     args = tyro.cli(Args)
-    node = SimulationClient(
+    node = SimulationNode(
+        env_name=args.env_name,
+        layout=args.layout,
+        style=args.style,
         policy_host=args.policy_host,
         policy_port=args.policy_port,
         policy_api_key=args.policy_api_key,

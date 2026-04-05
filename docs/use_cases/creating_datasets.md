@@ -3,14 +3,9 @@
 ## Collecting human demonstrations
 Use the simulation client recording workflow:
 
-Terminal 1:
+Terminal:
 ```
-python examples/dummy_policy_server.py --port 8000
-```
-
-Terminal 2:
-```
-python -m lerobocasa.launch.simulation_client --policy-port 8000
+python -m lerobocasa.launch.simulation_node --policy-port 8000
 ```
 
 <div class="admonition note">
@@ -20,7 +15,7 @@ Mac users must prepend this script with `mj`, ie. `mjpython`
 
 </div>
 
-In the simulation client, press `t` to toggle teleoperation and press `Enter` to start / stop recording.
+In the simulation node, press `t` to toggle teleoperation and press `Enter` to start / stop recording. Press `p` to connect or disconnect from a policy server.
 
 This saves raw `.msgpack` recordings in `recordings/`.
 
