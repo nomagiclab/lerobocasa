@@ -8,6 +8,7 @@ import yaml
 from datetime import datetime
 from termcolor import colored
 
+from lerobocasa.launch.teleop_utils import collect_human_trajectory
 import lerobocasa
 from lerobocasa.scripts.browse_mjcf_model import read_model
 import lerobocasa.macros as macros
@@ -15,7 +16,6 @@ from lerobocasa.models.fixtures.fixture import FixtureType
 from robosuite.wrappers import VisualizationWrapper
 
 from lerobocasa.utils.env_utils import create_env, run_random_rollouts
-from lerobocasa.scripts.collect_demos import collect_human_trajectory
 from lerobocasa.models.scenes.scene_registry import (
     get_layout_path,
     get_style_path,

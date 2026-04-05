@@ -102,7 +102,7 @@ class EnclosingWallRenderWrapper(Wrapper):
     `sim.model.geom_rgba[..., 3]` while enabled, and restore the original alpha values
     when disabled.
 
-    This is still "demo safe" in `collect_demos.py` because demos save MJCF from `env.model.get_xml()`
+    This is still demo safe in interactive rollout flows because they save MJCF from `env.model.get_xml()`
     (not the live `sim.model` values we adjust here), and state/action logging is unchanged.
     """
 

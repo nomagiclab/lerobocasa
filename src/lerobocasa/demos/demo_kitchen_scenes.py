@@ -11,8 +11,8 @@ from robosuite.wrappers import VisualizationWrapper
 from termcolor import colored
 
 import lerobocasa.macros as macros
+from lerobocasa.launch.teleop_utils import collect_human_trajectory
 from lerobocasa.models.scenes.scene_registry import LayoutType, StyleType
-from lerobocasa.scripts.collect_demos import collect_human_trajectory
 from lerobocasa.wrappers.enclosing_wall_render_wrapper import (
     EnclosingWallRenderWrapper,
     install_enclosing_wall_hotkeys,

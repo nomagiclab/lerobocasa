@@ -37,11 +37,19 @@ Note: by default this demo shows objaverse objects. To view AI-generated objects
 
 -------
 ### Teleoperate the robot
-Control the robot directly, either through a keyboard controller or spacemouse. This script renders the robot semi-translucent in order to minimize occlusions and enable better visibility. Can specify environment, layout, and style via arguments to the script. Collected demonstrations will not be saved 
+Control the robot directly through the simulation client. Start a policy server (or dummy server), then run simulation client and toggle teleoperation with `t`. Recording is toggled with `Enter`.
+
+Terminal 1:
 ```
-python -m robocasa.demos.demo_teleop
+python examples/dummy_policy_server.py --port 8000
 ```
-Note: If using spacemouse: you may need to modify the product ID to your appropriate model, setting `SPACEMOUSE_PRODUCT_ID` in `robocasa/macros_private.py`.
+
+Terminal 2:
+```
+python -m lerobocasa.launch.simulation_client --policy-port 8000
+```
+
+Note: If using spacemouse: you may need to modify the product ID to your appropriate model, setting `SPACEMOUSE_PRODUCT_ID` in `lerobocasa/macros_private.py`.
 
 ## Other useful sections
  - [Overview of Datasets](../use_cases/datasets.html)

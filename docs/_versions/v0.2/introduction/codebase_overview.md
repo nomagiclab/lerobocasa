@@ -9,7 +9,8 @@ Here is an outline of prominent components of the codebase:
 - `robocasa/scripts/`: utility scripts
   - `download_kitchen_assets.py`: downloads all assets. called automatically during setup in setup.sh
   - `download_datasets.py`: downloads datasets (see datasets section for details)
-  - `collect_demos.py`: collect demonstration trajectories for any task and environment
+  - `dataset_scripts/`: dataset conversion / inspection utilities
+  - `launch/`: runtime client / server utilities for simulation and recording
 - `robocasa/utils/`: utilities
   - `dataset_registry.py`: registry of all datasets (see [using datasets](../use_cases/using_datasets.html) for more details)
 - `robocasa/models/`: assets and implementations for objects, fixtures, and scenes

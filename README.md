@@ -138,12 +138,20 @@ uv run python -m lerobocasa.demos.demo_objects
 ```
 Note: By default, this demo shows objaverse objects. To view AI-generated objects, add the flag `--obj_types aigen`.
 
-### Teleoperate the robot
-Control the robot directly, either through a keyboard controller or spacemouse. This script renders the robot semi-translucent in order to minimize occlusions and enable better visibility.
+### Teleoperate and record with simulation client
+Run the dummy policy server and simulation client in two terminals. In the client, press `t` to toggle teleoperation and press `Enter` to start / stop recording.
+
+Terminal 1:
 ```
-uv run python -m lerobocasa.demos.demo_teleop
+uv run python examples/dummy_policy_server.py --port 8000
 ```
-Note: If using SpaceMouse, you may need to modify the product ID to your appropriate model, setting `SPACEMOUSE_PRODUCT_ID` in `lerobocasa/macros_private.py`.
+
+Terminal 2:
+```
+uv run python -m lerobocasa.launch.simulation_client --policy-port 8000
+```
+
+Note: If using SpaceMouse elsewhere, you may need to modify `SPACEMOUSE_PRODUCT_ID` in `lerobocasa/macros_private.py`.
 
 -------
 ## Tasks, datasets, policy learning, and additional use cases
