@@ -105,25 +105,58 @@ run_random_rollouts(
 )
 ```
 
-### Replay recorded datasets (server-client)
-Run replay in two terminals using the policy server <-> simulation client flow.
+### Simulation Node
 
-Terminal 1 (start policy server):
+You can start a simulation node with:
+
+```
+uv run python -m lerobocasa.launch.simulation_node \
+  --policy-port 8000
+```
+
+The policy port flag allows you to connect to the node with some policy server later on.
+
+### Replay Recorded Datasets
+Assuming that you have a simulation node running,
+you can replay a lerobot v3.0 dataset
+by starting the example replay policy server in another shell:
+
 ```
 uv run --with lerobot examples/replay_policy_server.py \
   --dataset_repo_id robotgeneralist/PickPlaceCounterToCabinet_pretrain \
   --port 8000
 ```
 
-Terminal 2 (start simulation client):
+If the replay crashes without any explicit error, try rebuilding the container.
+Sometimes OOM errors are thrown. Not sure why.
+
+### Teleoperate and Record with a Simulation Node
+Inside the simulation node, you can teleoperate the robot and record new trajectories.
+Press:
+ - `t` to toggle teleoperation,
+ - `Enter` to start / stop recording,
+ - `p` to connect or disconnect from a policy server.
+
+Note: If using SpaceMouse elsewhere, you may need to modify `SPACEMOUSE_PRODUCT_ID` in `lerobocasa/macros_private.py`.
+
+If you want to verify the recordings, 
+you can replay raw recordings using the `replay_recording_server.py`:
+
 ```
-uv run python -m lerobocasa.launch.simulation_node \
-  --policy-port 8000
+uv run --with lerobot examples/replay_recording_server.py \
+  --recordings_dir recordings \
+  --port 8000
 ```
 
-If the replay crashes without any explicit error,
-try rebuilding the container.
-Sometimes OOM errors are thrown. Not sure why.
+To convert the recordings into a lerobot v3.0 dataset and upload to HF:
+
+```
+uv run python -m lerobocasa.converters.convert_recordings_lerobot_v3 \
+    --recordings-dir recordings \
+    --output-dir /tmp/pickplace_target_v3 \
+    --upload-repo-id robotgeneralist/lerobocasa_custom_recordings \
+    --overwrite
+```
 
 ### Explore kitchen scenes
 Explore 2500+ kitchen scenes:
@@ -137,18 +170,6 @@ View and interact with both human-designed and AI-generated objects:
 uv run python -m lerobocasa.demos.demo_objects
 ```
 Note: By default, this demo shows objaverse objects. To view AI-generated objects, add the flag `--obj_types aigen`.
-
-### Teleoperate and record with simulation node
-Run the simulation node directly. Press `t` to toggle teleoperation, press `Enter` to start / stop recording, and press `p` to connect or disconnect from a policy server.
-
-Start simulation node:
-```
-uv run python -m lerobocasa.launch.simulation_node --policy-port 8000
-```
-
-When `p` is pressed, the node will attempt to connect to `--policy-host` / `--policy-port`.
-
-Note: If using SpaceMouse elsewhere, you may need to modify `SPACEMOUSE_PRODUCT_ID` in `lerobocasa/macros_private.py`.
 
 -------
 ## Tasks, datasets, policy learning, and additional use cases
