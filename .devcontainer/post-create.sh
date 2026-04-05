@@ -20,16 +20,16 @@ git clone --depth 1 --progress https://github.com/ARISE-Initiative/robosuite.git
 
 cd "$ROOT"
 
+rm -rf "$ROOT/.venv"
+
 echo "Installing dependencies with uv sync..."
 uv sync
 
 echo "Running RoboSuite macros setup..."
-uv run python "$ROBOSUITE_REPO/robosuite/scripts/setup_macros.py"
+printf 'y\n' | uv run python "$ROBOSUITE_REPO/robosuite/scripts/setup_macros.py"
 
 echo "Running RoboCasa macros setup..."
-printf 'y\n' |uv run python -m lerobocasa.scripts.setup_macros
-
-echo "Hello darkness"
+printf 'y\n' | uv run python -m lerobocasa.scripts.setup_macros
 
 if [[ "${REFRESH_ASSETS:-false}" == "true" ]]; then
     echo "Downloading RoboCasa kitchen assets..."
