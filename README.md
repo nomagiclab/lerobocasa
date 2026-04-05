@@ -121,6 +121,10 @@ uv run python -m lerobocasa.launch.simulation_client \
   --policy-port 8000
 ```
 
+If the replay crashes without any explicit error,
+try rebuilding the container.
+Sometimes OOM errors are thrown. Not sure why.
+
 ### Explore kitchen scenes
 Explore 2500+ kitchen scenes:
 ```

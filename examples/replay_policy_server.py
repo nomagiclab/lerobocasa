@@ -34,8 +34,8 @@ class Args:
     """Host to bind the replay websocket server"""
     port: int = 8000
     """Port to bind the replay websocket server"""
-    chunk_size: int = 15
-    """Default action chunk size when request does not provide execution_horizon"""
+    chunk_size: int = 200
+    """Number of actions returned per action_chunk request"""
 
 
 class ReplayPolicyServer:
@@ -61,7 +61,6 @@ class ReplayPolicyServer:
         self._metadata = {
             "type": "replay_policy",
             "dataset_repo_id": dataset_repo_id,
-            "num_episodes": len(self._episode_ranges),
             "default_chunk_size": chunk_size,
             "env_meta": self._env_meta,
         }
@@ -94,16 +93,17 @@ class ReplayPolicyServer:
                 websocket.send(str(exc))
 
     def _infer(self, request: dict[str, Any]) -> dict[str, Any]:
-        request_type = request.get("request_type", "action_chunk")
+        request_type = request["request_type"]
         if request_type == "reset_episode":
             return self._reset_episode(int(request["episode_index"]))
+        if request_type != "action_chunk":
+            raise ValueError(f"Unsupported request_type: {request_type}")
 
         episode_index = int(request["episode_index"])
-        step_index = int(request["step_index"])
-        chunk_size = int(request.get("execution_horizon", self._default_chunk_size))
-
-        if episode_index < 0 or episode_index >= len(self._episode_ranges):
+        if episode_index < 0:
             raise IndexError(f"episode_index out of range: {episode_index}")
+        episode_index = episode_index % len(self._episode_ranges)
+        step_index = int(request["step_index"])
 
         start_idx, end_idx = self._episode_ranges[episode_index]
         episode_len = end_idx - start_idx
@@ -112,22 +112,34 @@ class ReplayPolicyServer:
                 f"step_index out of range for episode {episode_index}: {step_index}"
             )
 
+        if step_index == episode_len:
+            return {
+                "actions": np.empty((0, 0), dtype=np.float32),
+                "episode_index": np.int32(episode_index),
+                "start_step": np.int32(step_index),
+                "chunk_size": np.int32(0),
+                "done": True,
+            }
+
         frame_from = start_idx + step_index
-        frame_to = min(start_idx + step_index + chunk_size, end_idx)
+        frame_to = min(start_idx + step_index + self._default_chunk_size, end_idx)
         actions_lerobot = np.stack(
             [np.asarray(self._dataset[idx]["action"]) for idx in range(frame_from, frame_to)]
         )
         chunk = reorder_lerobot_action(action_lerobot=actions_lerobot, dataset=self._dataset_root)
+        done = frame_to >= end_idx
         return {
             "actions": chunk.astype(np.float32),
             "episode_index": np.int32(episode_index),
             "start_step": np.int32(step_index),
             "chunk_size": np.int32(len(chunk)),
+            "done": done,
         }
 
     def _reset_episode(self, episode_index: int) -> dict[str, Any]:
-        if episode_index < 0 or episode_index >= len(self._episode_ranges):
+        if episode_index < 0:
             raise IndexError(f"episode_index out of range: {episode_index}")
+        episode_index = episode_index % len(self._episode_ranges)
 
         states = LU.get_episode_states(self._dataset_root, episode_index)
         initial_state = {
@@ -137,7 +149,6 @@ class ReplayPolicyServer:
         }
         return {
             "episode_index": np.int32(episode_index),
-            "num_steps": np.int32(states.shape[0]),
             "initial_state": initial_state,
         }
 
