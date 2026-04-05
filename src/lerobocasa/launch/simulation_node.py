@@ -119,14 +119,16 @@ class SimulationNode:
             reset_to(self.env, episode_initial_state)
             print(
                 f"Running episode {episode_index:06d} with policy. "
-                "Enter toggles recording. T toggles teleoperation. P toggles policy connection."
+                "Enter toggles recording. T toggles teleoperation. "
+                "P toggles policy connection. Ctrl+Q starts a new episode."
             )
         else:
             self.env.reset()
             episode_initial_state = self._build_local_initial_state()
             print(
                 f"Running local episode {episode_index:06d} without policy. "
-                "Enter toggles recording. T toggles teleoperation. P toggles policy connection."
+                "Enter toggles recording. T toggles teleoperation. "
+                "P toggles policy connection. Ctrl+Q starts a new episode."
             )
 
         step_index = 0
@@ -192,8 +194,29 @@ class SimulationNode:
                 else:
                     print("Teleoperation OFF")
 
+            if self._consume_device_reset_request():
+                if recording_active:
+                    self._save_recording(
+                        episode_index=episode_index,
+                        start_step=recording_start_step,
+                        initial_state=recording_initial_state,
+                        recorded_actions=recorded_actions,
+                    )
+                print("New episode requested (device reset).")
+                return episode_index + 1
+
             if teleop_active:
                 action = self._build_teleop_action()
+                if action is None:
+                    if recording_active:
+                        self._save_recording(
+                            episode_index=episode_index,
+                            start_step=recording_start_step,
+                            initial_state=recording_initial_state,
+                            recorded_actions=recorded_actions,
+                        )
+                    print("New episode requested (device reset).")
+                    return episode_index + 1
                 self._step_env(action)
                 if recording_active:
                     recorded_actions.append(np.asarray(action, dtype=np.float32))
@@ -268,10 +291,19 @@ class SimulationNode:
             for robot in self.env.robots
         ]
 
-    def _build_teleop_action(self) -> np.ndarray:
+    def _consume_device_reset_request(self) -> bool:
+        """Consume and clear a pending reset signal from the teleop device."""
+        if getattr(self._teleop_device, "_reset_state", 0):
+            self._teleop_device.start_control()
+            return True
+        return False
+
+    def _build_teleop_action(self) -> np.ndarray | None:
         input_ac_dict = self._teleop_device.input2action(mirror_actions=True)
         if input_ac_dict is None:
-            return np.zeros(self.env.action_dim, dtype=np.float32)
+            # Device reset (Ctrl+Q / equivalent): caller should restart episode.
+            self._teleop_device.start_control()
+            return None
 
         active_robot_idx = self._teleop_device.active_robot
         active_robot = self.env.robots[active_robot_idx]
