@@ -7,6 +7,14 @@ RUN apt-get update \
 		libhidapi-hidraw0 \
 		libhidapi-libusb0 \
 		libusb-1.0-0 \
+		xvfb \
+		xauth \
+		mesa-utils \
+		libgl1 \
+		libegl1 \
+		libgl1-mesa-dri \
+		libosmesa6 \
+		libglfw3 \
 	&& rm -rf /var/lib/apt/lists/*
 
 RUN curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR=/usr/local/bin sh

@@ -29,6 +29,7 @@ from lerobot.datasets.lerobot_dataset import LeRobotDataset
 import numpy as np
 import tyro
 
+from lerobocasa.launch.common import reset_to
 from lerobocasa.launch.recording_io import load_recording
 
 # Original RoboCasa HDF5 action ordering used by recorded simulation actions.
@@ -136,6 +137,38 @@ def _save_dataset_meta(dataset_root: Path, env_meta: dict, total_episodes: int) 
         json.dump(dataset_meta, f, indent=2)
 
 
+def _make_render_env(env_meta: dict, camera_names: list[str], camera_height: int, camera_width: int):
+    import robosuite
+
+    env_kwargs = dict(env_meta["env_kwargs"])
+    env_kwargs["env_name"] = env_meta["env_name"]
+    env_kwargs["has_renderer"] = False
+    env_kwargs["has_offscreen_renderer"] = True
+    env_kwargs["use_camera_obs"] = True
+    env_kwargs["camera_names"] = camera_names
+    env_kwargs["camera_heights"] = camera_height
+    env_kwargs["camera_widths"] = camera_width
+    env_kwargs["renderer"] = "mujoco"
+    return robosuite.make(**env_kwargs)
+
+
+def _extract_frame_images(obs: dict, camera_names: list[str]) -> dict[str, np.ndarray]:
+    images: dict[str, np.ndarray] = {}
+    for camera_name in camera_names:
+        obs_key = f"{camera_name}_image"
+        if obs_key not in obs:
+            raise KeyError(
+                f"Missing camera observation '{obs_key}'. Available keys: {list(obs.keys())}"
+            )
+        img = np.asarray(obs[obs_key])
+        # MuJoCo offscreen frames are typically bottom-up in memory.
+        img = np.flipud(img)
+        if img.dtype != np.uint8:
+            img = img.astype(np.uint8)
+        images[f"observation.images.{camera_name}"] = np.ascontiguousarray(img)
+    return images
+
+
 def _upload_to_hf(dataset_root: Path, repo_id: str, private: bool) -> None:
     load_dotenv()
     token = os.getenv("HF_TOKEN")
@@ -181,47 +214,75 @@ def _build_dataset(args: "Args") -> Path:
         raise ValueError("Recording actions must be a 2D array")
     action_dim = int(first_actions.shape[1])
 
+    features = {
+        "action": {"dtype": "float32", "shape": (action_dim,)},
+    }
+    for camera_name in args.camera_names:
+        features[f"observation.images.{camera_name}"] = {
+            "dtype": "video",
+            "shape": (args.camera_height, args.camera_width, 3),
+            "names": ["height", "width", "channel"],
+        }
+
     dataset = LeRobotDataset.create(
         repo_id=str(dataset_root),
         robot_type=args.robot_type,
         fps=args.fps,
-        features={
-            "action": {"dtype": "float32", "shape": (action_dim,)},
-        },
+        features=features,
+        image_writer_threads=args.image_writer_threads,
+        image_writer_processes=args.image_writer_processes,
+    )
+
+    env = _make_render_env(
+        env_meta=env_meta,
+        camera_names=args.camera_names,
+        camera_height=args.camera_height,
+        camera_width=args.camera_width,
     )
 
     fallback_task = str(env_meta.get("env_name", "recording"))
 
-    for episode_index, recording_path in enumerate(recording_files):
-        recording = load_recording(recording_path)
+    try:
+        for episode_index, recording_path in enumerate(recording_files):
+            recording = load_recording(recording_path)
 
-        current_env_meta = recording.get("env_meta")
-        if current_env_meta != env_meta:
-            raise ValueError(
-                f"All recordings must share identical env_meta. Mismatch in: {recording_path}"
+            current_env_meta = recording.get("env_meta")
+            if current_env_meta != env_meta:
+                raise ValueError(
+                    f"All recordings must share identical env_meta. Mismatch in: {recording_path}"
+                )
+
+            actions_hdf5 = np.asarray(recording["actions"], dtype=np.float32)
+            if actions_hdf5.ndim != 2:
+                raise ValueError(f"actions must be 2D in recording: {recording_path}")
+            if actions_hdf5.shape[1] != action_dim:
+                raise ValueError(
+                    f"Inconsistent action dimension in {recording_path}: "
+                    f"expected {action_dim}, got {actions_hdf5.shape[1]}"
+                )
+
+            actions_lerobot = _reorder_hdf5_action_to_lerobot(actions_hdf5, modality_dict).astype(
+                np.float32
             )
+            task_name = _extract_task_name(recording, fallback=fallback_task)
 
-        actions_hdf5 = np.asarray(recording["actions"], dtype=np.float32)
-        if actions_hdf5.ndim != 2:
-            raise ValueError(f"actions must be 2D in recording: {recording_path}")
-        if actions_hdf5.shape[1] != action_dim:
-            raise ValueError(
-                f"Inconsistent action dimension in {recording_path}: "
-                f"expected {action_dim}, got {actions_hdf5.shape[1]}"
-            )
+            reset_to(env, recording["initial_state"])
+            for action_hdf5, action_lerobot in zip(actions_hdf5, actions_lerobot, strict=True):
+                obs, _, _, _ = env.step(action_hdf5)
+                frame = {
+                    "action": action_lerobot,
+                    "task": task_name,
+                    **_extract_frame_images(obs, args.camera_names),
+                }
+                dataset.add_frame(frame)
 
-        actions_lerobot = _reorder_hdf5_action_to_lerobot(actions_hdf5, modality_dict).astype(
-            np.float32
-        )
-        task_name = _extract_task_name(recording, fallback=fallback_task)
+            dataset.save_episode(parallel_encoding=args.parallel_encoding)
+            _save_episode_extras(dataset_root, episode_index, recording)
 
-        for action in actions_lerobot:
-            dataset.add_frame({"action": action, "task": task_name})
-        dataset.save_episode()
+        dataset.finalize()
+    finally:
+        env.close()
 
-        _save_episode_extras(dataset_root, episode_index, recording)
-
-    dataset.finalize()
     _copy_extra_metadata_files(dataset_root)
     _save_dataset_meta(dataset_root, env_meta=env_meta, total_episodes=len(recording_files))
 
@@ -241,6 +302,24 @@ class Args:
     """Robot type stored in LeRobot metadata"""
     fps: int = 20
     """Dataset control frequency"""
+    camera_names: list[str] = dataclasses.field(
+        default_factory=lambda: [
+            "robot0_eye_in_hand",
+            "robot0_agentview_left",
+            "robot0_agentview_right",
+        ]
+    )
+    """Camera names to render and store as LeRobot video features"""
+    camera_height: int = 256
+    """Rendered camera frame height"""
+    camera_width: int = 256
+    """Rendered camera frame width"""
+    image_writer_processes: int = 0
+    """LeRobot image writer processes used before video encoding"""
+    image_writer_threads: int = 8
+    """LeRobot image writer threads used before video encoding"""
+    parallel_encoding: bool = True
+    """Encode each episode video in parallel when saving"""
     overwrite: bool = False
     """Overwrite output_dir if it already exists"""
     upload_repo_id: str | None = None
