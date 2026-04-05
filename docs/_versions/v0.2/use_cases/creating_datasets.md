@@ -1,9 +1,11 @@
 # Creating Datasets
 
 ## Collecting human demonstrations
-You can use the collect_demos.py script to collect demonstrations:
+Use the simulation client recording workflow:
+
+Terminal:
 ```
-python robocasa/scripts/collect_demos.py --env <env-name>
+python -m lerobocasa.launch.simulation_node --policy-port 8000
 ```
 
 <div class="admonition note">
@@ -13,16 +15,19 @@ Mac users must prepend this script with `mj`, ie. `mjpython`
 
 </div>
 
-You can either control the robot with a [spacemouse](https://3dconnexion.com/us/product/spacemouse-compact/) (`--device spacemouse`) or the keyboard (`--device keyboard`). A spacemouse is recommended.
+In the simulation node, press `t` to toggle teleoperation and press `Enter` to start / stop recording. Press `p` to connect or disconnect from a policy server.
 
-This will save a raw dataset. Follow the steps in the next section to extract image observations for this dataset.
+This will save raw `.msgpack` recordings.
 
 ## Extracting observations
-To extract observations from an existing dataset, you can run:
+To convert recordings into a LeRobot v3 dataset with rendered videos, run:
 ```
-OMP_NUM_THREADS=1 MPI_NUM_THREADS=1 MKL_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 python robocasa/scripts/dataset_states_to_obs.py --dataset <ds-path>
+python -m lerobocasa.converters.convert_recordings_lerobot_v3 \
+	--recordings-dir recordings \
+	--output-dir /tmp/lerobot_dataset \
+	--overwrite
 ```
-This script will generate a new dataset with the suffix `_im128.hdf5` in the same directory as `--dataset`.
+This script writes a LeRobot dataset to `--output-dir`.
 
 <div class="admonition note">
 <p class="admonition-title">Image resolution</p>
@@ -38,7 +43,3 @@ You can add the flag `--generative_textures` to render images with AI-generated 
 
 </div>
 
-<div class="admonition warning">
-<p class="admonition-title">Warning!</p>
-This observation extraction script may drop a few demonstrations due to subprocesses failing. To minimize this issue you can run the script with the flag --num_procs 1
-</div>

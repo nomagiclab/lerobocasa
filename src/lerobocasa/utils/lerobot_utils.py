@@ -6,9 +6,6 @@ from lerobot.datasets.video_utils import (
 )
 import glob
 import shutil
-from lerobocasa.utils.robomimic.robomimic_dataset_utils import (
-    get_env_metadata_from_dataset,
-)
 import xml.etree.ElementTree as ET
 
 from lerobot.datasets.lerobot_dataset import LeRobotDataset

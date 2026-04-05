@@ -20,6 +20,17 @@ maintained with a devcontainer-first workflow.
 The container provisions the right system dependencies,
 runs `uv sync`, and configures macros automatically.
 
+### Python version requirement
+This repository now targets Python `3.12`.
+If you are refreshing an existing local environment, run:
+
+```sh
+uv python install 3.12
+uv venv --python 3.12 --clear
+uv lock
+uv sync
+```
+
 ### Dev Container Setup
 
 You have to install docker to be able to use the container setup.
@@ -106,9 +117,13 @@ uv run --with lerobot examples/replay_policy_server.py \
 
 Terminal 2 (start simulation client):
 ```
-uv run python -m lerobocasa.launch.simulation_client \
+uv run python -m lerobocasa.launch.simulation_node \
   --policy-port 8000
 ```
+
+If the replay crashes without any explicit error,
+try rebuilding the container.
+Sometimes OOM errors are thrown. Not sure why.
 
 ### Explore kitchen scenes
 Explore 2500+ kitchen scenes:
@@ -123,12 +138,17 @@ uv run python -m lerobocasa.demos.demo_objects
 ```
 Note: By default, this demo shows objaverse objects. To view AI-generated objects, add the flag `--obj_types aigen`.
 
-### Teleoperate the robot
-Control the robot directly, either through a keyboard controller or spacemouse. This script renders the robot semi-translucent in order to minimize occlusions and enable better visibility.
+### Teleoperate and record with simulation node
+Run the simulation node directly. Press `t` to toggle teleoperation, press `Enter` to start / stop recording, and press `p` to connect or disconnect from a policy server.
+
+Start simulation node:
 ```
-uv run python -m lerobocasa.demos.demo_teleop
+uv run python -m lerobocasa.launch.simulation_node --policy-port 8000
 ```
-Note: If using SpaceMouse, you may need to modify the product ID to your appropriate model, setting `SPACEMOUSE_PRODUCT_ID` in `lerobocasa/macros_private.py`.
+
+When `p` is pressed, the node will attempt to connect to `--policy-host` / `--policy-port`.
+
+Note: If using SpaceMouse elsewhere, you may need to modify `SPACEMOUSE_PRODUCT_ID` in `lerobocasa/macros_private.py`.
 
 -------
 ## Tasks, datasets, policy learning, and additional use cases

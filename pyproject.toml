@@ -5,8 +5,9 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "lerobocasa"
 version = "0.1.0"
-requires-python = ">=3.11, <3.12"
+requires-python = ">=3.12, <3.13"
 dependencies = [
+    "lerobot==0.5.0",
     "robosuite",
     "h5py",
     "imageio",
@@ -16,7 +17,7 @@ dependencies = [
     "mujoco==3.3.1",
     "numpy==2.2.5",
     "hid>=1.0.9",
-    "torch>=2.11.0",
+    "torch>=2.2.1,<2.11.0",
     "dotenv>=0.9.9",
     "msgpack>=1.1.2",
     "tyro>=1.0.12",

@@ -9,14 +9,20 @@ import websockets.sync.client
 class PolicyClient:
     """Simple websocket client for requesting actions from a replay policy server."""
 
-    def __init__(self, host: str, port: int, api_key: str | None = None):
+    def __init__(
+        self,
+        host: str,
+        port: int,
+        api_key: str | None = None,
+        wait_for_server: bool = True,
+    ):
         self._uri = f"ws://{host}:{port}"
         self._api_key = api_key
         self._packer = msgpack.Packer(default=_pack_array)
         self.metadata: dict[str, Any] = {}
-        self._ws = self._wait_for_server()
+        self._ws = self._connect(wait_for_server=wait_for_server)
 
-    def _wait_for_server(self):
+    def _connect(self, wait_for_server: bool):
         while True:
             try:
                 headers = (
@@ -36,6 +42,8 @@ class PolicyClient:
                     self.metadata = msgpack.unpackb(metadata, object_hook=_unpack_array)
                 return conn
             except ConnectionRefusedError:
+                if not wait_for_server:
+                    raise
                 print(f"Waiting for policy server at {self._uri}...")
                 time.sleep(2)
 

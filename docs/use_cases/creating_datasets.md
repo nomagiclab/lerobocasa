@@ -1,9 +1,11 @@
 # Creating Datasets
 
 ## Collecting human demonstrations
-You can use the collect_demos.py script to collect demonstrations:
+Use the simulation client recording workflow:
+
+Terminal:
 ```
-python robocasa/scripts/collect_demos.py --env <env-name>
+python -m lerobocasa.launch.simulation_node --policy-port 8000
 ```
 
 <div class="admonition note">
@@ -13,16 +15,19 @@ Mac users must prepend this script with `mj`, ie. `mjpython`
 
 </div>
 
-You can either control the robot with a [spacemouse](https://3dconnexion.com/us/product/spacemouse-compact/) (`--device spacemouse`) or the keyboard (`--device keyboard`). A spacemouse is recommended.
+In the simulation node, press `t` to toggle teleoperation and press `Enter` to start / stop recording. Press `p` to connect or disconnect from a policy server.
 
-This will save a raw dataset. Follow the steps in the next section to extract image observations and convert the dataset to [lerobot](https://github.com/huggingface/lerobot) format for policy learning.
+This saves raw `.msgpack` recordings in `recordings/`.
 
 ## Extracting observations
-To extract observations from an existing dataset, you can run:
+To convert recordings into a [LeRobot](https://github.com/huggingface/lerobot) v3 dataset with rendered videos, run:
 ```
- python robocasa/scripts/dataset_scripts/convert_hdf5_lerobot.py --raw_dataset_path <hdf5-ds-path>
+python -m lerobocasa.converters.convert_recordings_lerobot_v3 \
+	--recordings-dir recordings \
+	--output-dir /tmp/lerobot_dataset \
+	--overwrite
 ```
-This script will generate a new dataset subfolder named `lerobot` in the same directory as `--raw_dataset_path`. For more information on the generated dataset structure, please refer to the [Using Datasets](../datasets/using_datasets.md) guide.
+For more information on the generated dataset structure, please refer to the [Using Datasets](../datasets/using_datasets.md) guide.
 
 <div class="admonition note">
 <p class="admonition-title">Image resolution</p>

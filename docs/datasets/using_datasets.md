@@ -169,5 +169,5 @@ python examples/replay_policy_server.py --dataset_repo_id <hf-dataset-repo-id> -
 ```
 and in a second terminal:
 ```
-python -m lerobocasa.launch.simulation_client --policy-port 8000
+python -m lerobocasa.launch.simulation_node --policy-port 8000
 ```
