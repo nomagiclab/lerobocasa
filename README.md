@@ -20,6 +20,17 @@ maintained with a devcontainer-first workflow.
 The container provisions the right system dependencies,
 runs `uv sync`, and configures macros automatically.
 
+### Python version requirement
+This repository now targets Python `3.12`.
+If you are refreshing an existing local environment, run:
+
+```sh
+uv python install 3.12
+uv venv --python 3.12 --clear
+uv lock
+uv sync
+```
+
 ### Dev Container Setup
 
 You have to install docker to be able to use the container setup.
