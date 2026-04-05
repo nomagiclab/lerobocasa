@@ -45,6 +45,8 @@ def reset_to(env, state: dict) -> None:
         env.sim.reset()
 
     if "states" in state:
+        if env.sim is None:
+            env.reset()
         env.sim.set_state_from_flattened(state["states"])
         env.sim.forward()
 

@@ -3,11 +3,13 @@ import time
 
 from dotenv import load_dotenv
 import tyro
+import numpy as np
 
 from lerobocasa.launch.common import make_robocasa_env_from_meta
 from lerobocasa.launch.common import reset_to
 from lerobocasa.launch.common import sleep_to_maintain_rate
 from lerobocasa.launch.policy_rpc import PolicyClient
+from lerobocasa.launch.recording_io import save_recording
 
 
 class SimulationClient:
@@ -43,15 +45,21 @@ class SimulationClient:
 
     def _run_episode(self, episode_index: int) -> None:
         reset_result = self.policy.infer(self._build_reset_request(episode_index))
-        initial_state = reset_result["initial_state"]
+        episode_initial_state = reset_result["initial_state"]
 
-        reset_to(self.env, initial_state)
+        reset_to(self.env, episode_initial_state)
 
-        print(f"Running episode {episode_index:06d}")
-        if self.render:
-            self.env.render()
+        print(
+            f"Running episode {episode_index:06d}. "
+            "Press Enter to start/stop recording at any time."
+        )
 
         step_index = 0
+        recording_active = False
+        recording_start_step = 0
+        recording_initial_state: dict | None = None
+        recorded_actions: list[np.ndarray] = []
+
         while True:
             request = self._build_action_request(
                 episode_index=episode_index,
@@ -60,18 +68,74 @@ class SimulationClient:
             result = self.policy.infer(request)
             actions = result["actions"]
             done = bool(result["done"])
-            for action in actions:
-                start_time = time.time()
-                _, _, terminated, truncated = self.env.step(action)
 
+            for action in actions:
+                if _enter_pressed_nonblocking():
+                    if not recording_active:
+                        recording_active = True
+                        recording_start_step = step_index
+                        recording_initial_state = {
+                            "states": self.env.sim.get_state().flatten().copy(),
+                            "model": episode_initial_state.get("model"),
+                            "ep_meta": episode_initial_state.get("ep_meta"),
+                        }
+                        recorded_actions = []
+                        print(f"Recording started at step {recording_start_step}.")
+                    else:
+                        recording_active = False
+                        self._save_recording(
+                            episode_index=episode_index,
+                            start_step=recording_start_step,
+                            initial_state=recording_initial_state,
+                            recorded_actions=recorded_actions,
+                        )
+                        recorded_actions = []
+                        recording_initial_state = None
+
+                start_time = time.time()
+                self.env.step(action)
                 if self.render:
                     self.env.render()
-
+                if recording_active:
+                    recorded_actions.append(np.asarray(action, dtype=np.float32))
                 sleep_to_maintain_rate(start_time, self.control_freq)
                 step_index += 1
 
             if done:
-                return
+                if recording_active:
+                    self._save_recording(
+                        episode_index=episode_index,
+                        start_step=recording_start_step,
+                        initial_state=recording_initial_state,
+                        recorded_actions=recorded_actions,
+                    )
+                print("Episode finished before manual stop.")
+                break
+
+    def _save_recording(
+        self,
+        episode_index: int,
+        start_step: int,
+        initial_state: dict | None,
+        recorded_actions: list[np.ndarray],
+    ) -> None:
+        if initial_state is None:
+            return
+        if not recorded_actions:
+            print("Recording was empty. Nothing saved.")
+            return
+
+        actions_np = np.stack(recorded_actions)
+        recording = {
+            "episode_index": np.int32(episode_index),
+            "start_step": np.int32(start_step),
+            "env_meta": self.policy.metadata.get("env_meta"),
+            "initial_state": initial_state,
+            "actions": actions_np,
+            "control_freq": np.float32(self.control_freq),
+        }
+        path = save_recording(recording, output_dir="recordings")
+        print(f"Saved recording: {path}")
 
     def spin(self) -> None:
         episode_index = 0
@@ -96,6 +160,18 @@ class Args:
     """Simulation control frequency"""
     render: bool = True
     """Render with on-screen MuJoCo viewer"""
+
+
+def _enter_pressed_nonblocking() -> bool:
+    import select
+    import sys
+
+    readable, _, _ = select.select([sys.stdin], [], [], 0.0)
+    if not readable:
+        return False
+
+    line = sys.stdin.readline()
+    return line.strip() == ""
 
 
 def main() -> None:
