@@ -2,40 +2,6 @@
 
 We provide datasets in the lerobot format. There are broadly three types of datasets: **pretraining (human)** datasets, **pretraining (MimicGen)** datasets, and **target (human)** datasets (see [datasets overview](../datasets/datasets_overview.html) for details).
 
-### Downloading datasets
-
-<div class="admonition note">
-<p class="admonition-title">Dataset storage location</p>
-
-By default, all datasets are stored under `datasets/` in the root RoboCasa directory. You can change the location for datasets by setting `DATASET_BASE_PATH` in `robocasa/macros_private.py`.
-
-</div>
-
-Here are a few examples to download datasets:
-
-<details>
-<summary><b>Click to expand download examples</b></summary>
-
-```
-# downloads all datasets
-python -m robocasa.scripts.download_datasets --all
-
-# only download pretraining human data
-python -m robocasa.scripts.download_datasets --split pretrain --source human
-
-# only download pretraining MimicGen data
-python -m robocasa.scripts.download_datasets --split pretrain --source mimicgen
-
-# only download target human data
-python -m robocasa.scripts.download_datasets --split target --source human
-
-# download all datasets for specific task(s)
-python -m robocasa.scripts.download_datasets --tasks PickPlaceCounterToCabinet ArrangeBreadBasket
-```
-
-You can specify `--overwrite` to overwrite existing datasets.
-</details>
-
 ### Dataset structure
 RoboCasa datasets follow the LeRobot format. Here is an overview of important elements of each dataset:
 

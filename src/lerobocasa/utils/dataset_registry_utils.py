@@ -78,8 +78,6 @@ def get_ds_meta(task, split, source="human", demo_fraction=1.0):
         ds_base_path = macros.DATASET_BASE_PATH
 
     meta["path"] = os.path.join(ds_base_path, folder, fname)
-    if "download_links" in ds_config:
-        meta["url"] = ds_config["download_links"][source]
     meta["horizon"] = ds_config["horizon"]
     num_sampled_demos = int(num_total_demos * demo_fraction)
     meta["filter_key"] = f"{num_sampled_demos}_demos"

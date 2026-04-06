@@ -8,7 +8,6 @@ Here is an outline of prominent components of the codebase:
   - `composite/`: implementations of all composite tasks
 - `robocasa/scripts/`: utility scripts
   - `download_kitchen_assets.py`: downloads all assets. called automatically during setup in setup.sh
-  - `download_datasets.py`: downloads datasets (see datasets section for details)
   - `dataset_scripts/`: dataset conversion / inspection utilities
   - `launch/`: runtime client / server utilities for simulation and recording
 - `robocasa/utils/`: utilities
