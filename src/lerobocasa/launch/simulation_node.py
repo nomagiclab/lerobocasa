@@ -66,23 +66,6 @@ class SimulationNode:
         self._all_prev_gripper_actions = []
         self._latest_obs: dict | None = None
 
-    def _build_action_request(self, episode_index: int, step_index: int) -> dict:
-        request = {
-            "request_type": "action_chunk",
-            "episode_index": episode_index,
-            "step_index": step_index,
-        }
-        request.update(self._build_policy_observation())
-        return request
-
-    def _build_reset_request(self, episode_index: int) -> dict:
-        request = {
-            "request_type": "reset_episode",
-            "episode_index": episode_index,
-        }
-        request.update(self._build_policy_observation())
-        return request
-
     def _build_policy_observation(self) -> dict:
         obs = self._get_current_obs()
 
@@ -164,29 +147,15 @@ class SimulationNode:
         }
 
     def _run_episode(self, episode_index: int) -> int:
+        self._latest_obs = self.env.reset()
+        episode_initial_state = self._build_local_initial_state()
         if self.policy is not None:
-            episode_initial_state: dict | None = None
-            try:
-                reset_result = self.policy.infer(self._build_reset_request(episode_index))
-                if isinstance(reset_result, dict):
-                    episode_initial_state = reset_result.get("initial_state")
-            except Exception as exc:
-                print(f"Policy reset request failed, using local reset: {exc}")
-
-            if episode_initial_state is not None:
-                reset_to(self.env, episode_initial_state)
-                self._latest_obs = self._get_current_obs()
-            else:
-                self._latest_obs = self.env.reset()
-                episode_initial_state = self._build_local_initial_state()
             print(
                 f"Running episode {episode_index:06d} with policy. "
                 "Enter toggles recording. T toggles teleoperation. "
                 "P toggles policy connection. Ctrl+Q starts a new episode."
             )
         else:
-            self._latest_obs = self.env.reset()
-            episode_initial_state = self._build_local_initial_state()
             print(
                 f"Running local episode {episode_index:06d} without policy. "
                 "Enter toggles recording. T toggles teleoperation. "
@@ -230,17 +199,9 @@ class SimulationNode:
 
             if self._hotkeys.consume_policy_toggle_request():
                 if self.policy is None:
-                    connected = self._connect_policy()
-                    if connected:
-                        if recording_active:
-                            self._save_recording(
-                                episode_index=episode_index,
-                                start_step=recording_start_step,
-                                initial_state=recording_initial_state,
-                                recorded_actions=recorded_actions,
-                            )
-                        print("Restarting episode from policy reset.")
-                        return episode_index
+                    self._connect_policy()
+                    policy_actions = []
+                    policy_chunk_done = False
                 else:
                     self._disconnect_policy()
                     policy_actions = []
@@ -294,11 +255,12 @@ class SimulationNode:
                 continue
 
             if not policy_actions:
-                request = self._build_action_request(
-                    episode_index=episode_index,
-                    step_index=step_index,
-                )
-                result = self.policy.infer(request)
+                result = self.policy.infer(self._build_policy_observation())
+                initial_state = result.get("initial_state")
+                if initial_state is not None:
+                    reset_to(self.env, initial_state)
+                    self._latest_obs = self._get_current_obs()
+                    episode_initial_state = initial_state
                 policy_actions = [
                     np.asarray(action, dtype=np.float32) for action in result["actions"]
                 ]

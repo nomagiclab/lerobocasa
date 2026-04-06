@@ -79,6 +79,8 @@ class ReplayPolicyServer:
 
     def _handle_connection(self, websocket) -> None:
         websocket.send(self._packer.pack(self._metadata))
+        episode_index = 0
+        step_index = 0
         while True:
             payload = websocket.recv()
             if isinstance(payload, str):
@@ -87,39 +89,21 @@ class ReplayPolicyServer:
 
             try:
                 request = msgpack.unpackb(payload, object_hook=_unpack_array)
-                response = self._infer(request)
+                response = self._infer(request, episode_index, step_index)
+                step_index += int(response.get("chunk_size", 0))
+                if response.get("done"):
+                    episode_index = (episode_index + 1) % len(self._episode_ranges)
+                    step_index = 0
                 websocket.send(self._packer.pack(response))
             except Exception as exc:
                 websocket.send(str(exc))
 
-    def _infer(self, request: dict[str, Any]) -> dict[str, Any]:
-        request_type = request["request_type"]
-        if request_type == "reset_episode":
-            return self._reset_episode(int(request["episode_index"]))
-        if request_type != "action_chunk":
-            raise ValueError(f"Unsupported request_type: {request_type}")
-
-        episode_index = int(request["episode_index"])
-        if episode_index < 0:
-            raise IndexError(f"episode_index out of range: {episode_index}")
-        episode_index = episode_index % len(self._episode_ranges)
-        step_index = int(request["step_index"])
-
+    def _infer(self, request: dict[str, Any], episode_index: int, step_index: int) -> dict[str, Any]:
         start_idx, end_idx = self._episode_ranges[episode_index]
         episode_len = end_idx - start_idx
-        if step_index < 0 or step_index > episode_len:
-            raise IndexError(
-                f"step_index out of range for episode {episode_index}: {step_index}"
-            )
 
         if step_index == episode_len:
-            return {
-                "actions": np.empty((0, 0), dtype=np.float32),
-                "episode_index": np.int32(episode_index),
-                "start_step": np.int32(step_index),
-                "chunk_size": np.int32(0),
-                "done": True,
-            }
+            return {"actions": np.empty((0, 0), dtype=np.float32), "done": True}
 
         frame_from = start_idx + step_index
         frame_to = min(start_idx + step_index + self._default_chunk_size, end_idx)
@@ -128,29 +112,19 @@ class ReplayPolicyServer:
         )
         chunk = reorder_lerobot_action(action_lerobot=actions_lerobot, dataset=self._dataset_root)
         done = frame_to >= end_idx
-        return {
+        response: dict[str, Any] = {
             "actions": chunk.astype(np.float32),
-            "episode_index": np.int32(episode_index),
-            "start_step": np.int32(step_index),
             "chunk_size": np.int32(len(chunk)),
             "done": done,
         }
-
-    def _reset_episode(self, episode_index: int) -> dict[str, Any]:
-        if episode_index < 0:
-            raise IndexError(f"episode_index out of range: {episode_index}")
-        episode_index = episode_index % len(self._episode_ranges)
-
-        states = LU.get_episode_states(self._dataset_root, episode_index)
-        initial_state = {
-            "states": states[0],
-            "model": LU.get_episode_model_xml(self._dataset_root, episode_index),
-            "ep_meta": json.dumps(LU.get_episode_meta(self._dataset_root, episode_index)),
-        }
-        return {
-            "episode_index": np.int32(episode_index),
-            "initial_state": initial_state,
-        }
+        if step_index == 0:
+            states = LU.get_episode_states(self._dataset_root, episode_index)
+            response["initial_state"] = {
+                "states": states[0],
+                "model": LU.get_episode_model_xml(self._dataset_root, episode_index),
+                "ep_meta": json.dumps(LU.get_episode_meta(self._dataset_root, episode_index)),
+            }
+        return response
 
 
 def _pack_array(obj):

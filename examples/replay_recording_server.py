@@ -81,6 +81,8 @@ class ReplayRecordingServer:
 
     def _handle_connection(self, websocket) -> None:
         websocket.send(self._packer.pack(self._metadata))
+        episode_index = 0
+        step_index = 0
         while True:
             payload = websocket.recv()
             if isinstance(payload, str):
@@ -89,50 +91,32 @@ class ReplayRecordingServer:
 
             try:
                 request = msgpack.unpackb(payload, object_hook=_unpack_array)
-                response = self._infer(request)
+                response = self._infer(request, episode_index, step_index)
+                step_index += int(response.get("chunk_size", 0))
+                if response.get("done"):
+                    episode_index = (episode_index + 1) % len(self._episodes)
+                    step_index = 0
                 websocket.send(self._packer.pack(response))
             except Exception as exc:
                 websocket.send(str(exc))
 
-    def _infer(self, request: dict[str, Any]) -> dict[str, Any]:
-        request_type = request["request_type"]
-        episode_index = int(request["episode_index"])
-        if episode_index < 0:
-            raise IndexError(f"episode_index out of range: {episode_index}")
-        episode_index = episode_index % len(self._episodes)
+    def _infer(self, request: dict[str, Any], episode_index: int, step_index: int) -> dict[str, Any]:
         episode = self._episodes[episode_index]
-
-        if request_type == "reset_episode":
-            return {
-                "episode_index": np.int32(episode_index),
-                "initial_state": episode["initial_state"],
-            }
-        if request_type != "action_chunk":
-            raise ValueError(f"Unsupported request_type: {request_type}")
-
         actions = episode["actions"]
-        step_index = int(request["step_index"])
-        if step_index < 0 or step_index > len(actions):
-            raise IndexError(f"step_index out of range: {step_index}")
 
         if step_index == len(actions):
-            return {
-                "actions": np.empty((0, 0), dtype=np.float32),
-                "episode_index": np.int32(episode_index),
-                "start_step": np.int32(step_index),
-                "chunk_size": np.int32(0),
-                "done": True,
-            }
+            return {"actions": np.empty((0, 0), dtype=np.float32), "done": True}
 
         frame_to = min(step_index + self._default_chunk_size, len(actions))
         chunk = actions[step_index:frame_to]
-        return {
+        response: dict[str, Any] = {
             "actions": chunk,
-            "episode_index": np.int32(episode_index),
-            "start_step": np.int32(step_index),
             "chunk_size": np.int32(len(chunk)),
             "done": frame_to >= len(actions),
         }
+        if step_index == 0:
+            response["initial_state"] = episode["initial_state"]
+        return response
 
 
 def _pack_array(obj):
