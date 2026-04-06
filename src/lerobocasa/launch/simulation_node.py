@@ -48,7 +48,14 @@ class SimulationNode:
                 "style_ids": style,
                 "translucent_robot": True,
                 "ignore_done": True,
-                "use_camera_obs": False,
+                "use_camera_obs": True,
+                "camera_names": [
+                    "robot0_eye_in_hand",
+                    "robot0_agentview_left",
+                    "robot0_agentview_right",
+                ],
+                "camera_heights": 256,
+                "camera_widths": 256,
                 "control_freq": control_freq,
             },
         }
@@ -57,19 +64,65 @@ class SimulationNode:
         self._hotkeys = _NodeHotkeys()
         self._teleop_device = _create_keyboard_device(self.env)
         self._all_prev_gripper_actions = []
+        self._latest_obs: dict | None = None
 
     def _build_action_request(self, episode_index: int, step_index: int) -> dict:
-        return {
+        request = {
             "request_type": "action_chunk",
             "episode_index": episode_index,
             "step_index": step_index,
         }
+        request.update(self._build_policy_observation())
+        return request
 
     def _build_reset_request(self, episode_index: int) -> dict:
-        return {
+        request = {
             "request_type": "reset_episode",
             "episode_index": episode_index,
         }
+        request.update(self._build_policy_observation())
+        return request
+
+    def _build_policy_observation(self) -> dict:
+        obs = self._get_current_obs()
+
+        images = {
+            "base_0_rgb": np.ascontiguousarray(np.flipud(obs["robot0_eye_in_hand_image"])),
+            "left_wrist_0_rgb": np.ascontiguousarray(np.flipud(obs["robot0_agentview_left_image"])),
+            "right_wrist_0_rgb": np.ascontiguousarray(np.flipud(obs["robot0_agentview_right_image"])),
+        }
+
+        state = np.concatenate(
+            [
+                np.asarray(obs["robot0_base_pos"], dtype=np.float32),
+                np.asarray(obs["robot0_base_quat"], dtype=np.float32),
+                np.asarray(obs["robot0_base_to_eef_pos"], dtype=np.float32),
+                np.asarray(obs["robot0_base_to_eef_quat"], dtype=np.float32),
+                np.asarray(obs["robot0_gripper_qpos"], dtype=np.float32),
+            ],
+            axis=0,
+        )
+
+        ep_meta = self.env.get_ep_meta() if hasattr(self.env, "get_ep_meta") else {}
+        prompt = ep_meta.get("lang", "") if isinstance(ep_meta, dict) else ""
+
+        return {
+            "images": images,
+            "state": state,
+            "prompt": prompt,
+        }
+
+    def _get_current_obs(self) -> dict:
+        if self._latest_obs is not None:
+            return self._latest_obs
+
+        obs = (
+            self.env.viewer._get_observations(force_update=True)
+            if getattr(self.env, "viewer_get_obs", False)
+            else self.env._get_observations(force_update=True)
+        )
+        self._latest_obs = obs
+        return obs
 
     def _connect_policy(self) -> bool:
         if self.policy is not None:
@@ -88,11 +141,9 @@ class SimulationNode:
 
         policy_env_meta = policy.metadata.get("env_meta")
         if policy_env_meta is None:
-            policy.close()
-            print("Policy server did not provide env_meta. Connection aborted.")
-            return False
-
-        self._env_meta = policy_env_meta
+            print("Policy server did not provide env_meta. Using local env metadata.")
+        else:
+            self._env_meta = policy_env_meta
         self.policy = policy
         print(f"Policy connected at ws://{self._policy_host}:{self._policy_port}")
         return True
@@ -114,16 +165,27 @@ class SimulationNode:
 
     def _run_episode(self, episode_index: int) -> int:
         if self.policy is not None:
-            reset_result = self.policy.infer(self._build_reset_request(episode_index))
-            episode_initial_state = reset_result["initial_state"]
-            reset_to(self.env, episode_initial_state)
+            episode_initial_state: dict | None = None
+            try:
+                reset_result = self.policy.infer(self._build_reset_request(episode_index))
+                if isinstance(reset_result, dict):
+                    episode_initial_state = reset_result.get("initial_state")
+            except Exception as exc:
+                print(f"Policy reset request failed, using local reset: {exc}")
+
+            if episode_initial_state is not None:
+                reset_to(self.env, episode_initial_state)
+                self._latest_obs = self._get_current_obs()
+            else:
+                self._latest_obs = self.env.reset()
+                episode_initial_state = self._build_local_initial_state()
             print(
                 f"Running episode {episode_index:06d} with policy. "
                 "Enter toggles recording. T toggles teleoperation. "
                 "P toggles policy connection. Ctrl+Q starts a new episode."
             )
         else:
-            self.env.reset()
+            self._latest_obs = self.env.reset()
             episode_initial_state = self._build_local_initial_state()
             print(
                 f"Running local episode {episode_index:06d} without policy. "
@@ -240,7 +302,7 @@ class SimulationNode:
                 policy_actions = [
                     np.asarray(action, dtype=np.float32) for action in result["actions"]
                 ]
-                policy_chunk_done = bool(result["done"])
+                policy_chunk_done = bool(result.get("done", False))
 
                 if not policy_actions and policy_chunk_done:
                     if recording_active:
@@ -275,7 +337,7 @@ class SimulationNode:
 
     def _step_env(self, action: np.ndarray) -> None:
         start_time = time.time()
-        self.env.step(action)
+        self._latest_obs, _, _, _ = self.env.step(action)
         if self.render:
             self.env.render()
         sleep_to_maintain_rate(start_time, self.control_freq)

@@ -130,6 +130,28 @@ uv run --with lerobot examples/replay_policy_server.py \
 If the replay crashes without any explicit error, try rebuilding the container.
 Sometimes OOM errors are thrown. Not sure why.
 
+### Evaluating Policies
+
+First try at training and evaluating models can be found on
+[this branch](https://github.com/nomagiclab/openpi/tree/156-robocasa-integration)
+in our internal `openpi` repo.
+If the policy server is running inside a devcontainer on a remote machine,
+remember to properly forward appropriate ports, e.g., for jerryrig:
+
+```bash
+ssh -N -L 0.0.0.0:18000:127.0.0.1:8000 jerryrig
+```
+
+Then the simulation node can be run with:
+
+```bash
+uv run python -m lerobocasa.launch.simulation_node --policy-host host.docker.internal --policy-port 18000
+```
+
+The policy does random movements on a 5k checkpoint,
+so I suspect bugs are present.
+But at least on a general communication level the setup is working.
+
 ### Teleoperate and Record with a Simulation Node
 Inside the simulation node, you can teleoperate the robot and record new trajectories.
 Press:

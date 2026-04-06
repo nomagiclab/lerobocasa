@@ -15,8 +15,14 @@ def make_robocasa_env_from_meta(env_meta: dict, has_renderer: bool):
     env_kwargs["env_name"] = env_meta["env_name"]
     env_kwargs["renderer"] = "mjviewer"
     env_kwargs["has_renderer"] = has_renderer
-    env_kwargs["has_offscreen_renderer"] = False
-    env_kwargs["use_camera_obs"] = False
+    env_kwargs["has_offscreen_renderer"] = True
+    env_kwargs["use_camera_obs"] = True
+    env_kwargs.setdefault(
+        "camera_names",
+        ["robot0_eye_in_hand", "robot0_agentview_left", "robot0_agentview_right"],
+    )
+    env_kwargs.setdefault("camera_heights", 256)
+    env_kwargs.setdefault("camera_widths", 256)
     return robosuite.make(**env_kwargs)
 
 
