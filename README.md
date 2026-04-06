@@ -70,25 +70,6 @@ uv run python -m lerobocasa.scripts.download_kitchen_assets
 -------
 ## Basic Usage
 
-### Gym wrapper
-You can create environments using gym wrappers and run rollouts:
-```py
-import gymnasium as gym
-import lerobocasa
-from lerobocasa.utils.env_utils import run_random_rollouts
-
-env = gym.make(
-   "lerobocasa/PickPlaceCounterToCabinet",
-    split="pretrain", # use 'pretrain' or 'target' kitchen scenes and objects
-    seed=0 # seed environment as needed. set seed=None to run unseeded
-)
-
-# run rollouts with random actions and save video
-run_random_rollouts(
-    env, num_rollouts=3, num_steps=100, video_path="/tmp/test.mp4"
-)
-```
-
 ### Simulation Node
 
 You can start a simulation node with:
@@ -178,13 +159,28 @@ uv run python -m lerobocasa.demos.demo_objects
 Note: By default, this demo shows objaverse objects. To view AI-generated objects, add the flag `--obj_types aigen`.
 
 -------
-## Tasks, datasets, policy learning, and additional use cases
-Please refer to the [documentation page](https://robocasa.ai/docs/introduction/overview.html) for information about tasks, datasets, benchmarking, and more.
 
--------
-## Releases
-* [2/18/2026] **v1.0**: RoboCasa365 release, with 365 tasks, 2500+ kitchen scenes, 2200+ hours of robot demonstration data, and benchmarking support.
-* [10/31/2024] **v0.2**: using RoboSuite `v1.5` as the backend, with improved support for custom robot composition, composite controllers, more teleoperation devices, photo-realistic rendering.
+### Gym wrapper
+THIS IS PART OF THE ORIGINAL ROBOCASA REPO.
+HAVEN'T YET VERIFIED IF THE THING BELOW WORKS
+
+You can create environments using gym wrappers and run rollouts:
+```py
+import gymnasium as gym
+import lerobocasa
+from lerobocasa.utils.env_utils import run_random_rollouts
+
+env = gym.make(
+   "lerobocasa/PickPlaceCounterToCabinet",
+    split="pretrain", # use 'pretrain' or 'target' kitchen scenes and objects
+    seed=0 # seed environment as needed. set seed=None to run unseeded
+)
+
+# run rollouts with random actions and save video
+run_random_rollouts(
+    env, num_rollouts=3, num_steps=100, video_path="/tmp/test.mp4"
+)
+```
 
 -------
 ## License
