@@ -1,14 +1,3 @@
-"""Serve replay actions from a lerobot dataset.
-
-This script mirrors the websocket client/server architecture used by lerobosuite,
-but instead of model inference it returns recorded dataset actions.
-
-Example usage:
-uv run --with lerobot examples/replay_policy_server.py \
-    --dataset_repo_id robotgeneralist/PickPlaceCounterToCabinet_pretrain \
-    --port 8000
-"""
-
 import dataclasses
 import json
 import logging
@@ -34,16 +23,13 @@ class Args:
     """Host to bind the replay websocket server"""
     port: int = 8000
     """Port to bind the replay websocket server"""
-    chunk_size: int = 200
-    """Number of actions returned per action_chunk request"""
 
 
 class ReplayPolicyServer:
-    def __init__(self, dataset_repo_id: str, host: str, port: int, chunk_size: int):
+    def __init__(self, dataset_repo_id: str, host: str, port: int):
         self._dataset_repo_id = dataset_repo_id
         self._host = host
         self._port = port
-        self._default_chunk_size = chunk_size
 
         # Use explicit branch to avoid requiring HF tags for codebase version lookup.
         self._dataset = LeRobotDataset(
@@ -61,7 +47,6 @@ class ReplayPolicyServer:
         self._metadata = {
             "type": "replay_policy",
             "dataset_repo_id": dataset_repo_id,
-            "default_chunk_size": chunk_size,
             "env_meta": self._env_meta,
         }
         self._packer = msgpack.Packer(default=_pack_array)
@@ -80,7 +65,6 @@ class ReplayPolicyServer:
     def _handle_connection(self, websocket) -> None:
         websocket.send(self._packer.pack(self._metadata))
         episode_index = 0
-        step_index = 0
         while True:
             payload = websocket.recv()
             if isinstance(payload, str):
@@ -88,43 +72,29 @@ class ReplayPolicyServer:
                 continue
 
             try:
-                request = msgpack.unpackb(payload, object_hook=_unpack_array)
-                response = self._infer(request, episode_index, step_index)
-                step_index += int(response.get("chunk_size", 0))
-                if response.get("done"):
-                    episode_index = (episode_index + 1) % len(self._episode_ranges)
-                    step_index = 0
+                msgpack.unpackb(payload, object_hook=_unpack_array)
+                response = self._infer(episode_index)
+                episode_index = (episode_index + 1) % len(self._episode_ranges)
                 websocket.send(self._packer.pack(response))
             except Exception as exc:
                 websocket.send(str(exc))
 
-    def _infer(self, request: dict[str, Any], episode_index: int, step_index: int) -> dict[str, Any]:
+    def _infer(self, episode_index: int) -> dict[str, Any]:
         start_idx, end_idx = self._episode_ranges[episode_index]
-        episode_len = end_idx - start_idx
-
-        if step_index == episode_len:
-            return {"actions": np.empty((0, 0), dtype=np.float32), "done": True}
-
-        frame_from = start_idx + step_index
-        frame_to = min(start_idx + step_index + self._default_chunk_size, end_idx)
         actions_lerobot = np.stack(
-            [np.asarray(self._dataset[idx]["action"]) for idx in range(frame_from, frame_to)]
+            [np.asarray(self._dataset[idx]["action"]) for idx in range(start_idx, end_idx)]
         )
-        chunk = reorder_lerobot_action(action_lerobot=actions_lerobot, dataset=self._dataset_root)
-        done = frame_to >= end_idx
-        response: dict[str, Any] = {
-            "actions": chunk.astype(np.float32),
-            "chunk_size": np.int32(len(chunk)),
-            "done": done,
-        }
-        if step_index == 0:
-            states = LU.get_episode_states(self._dataset_root, episode_index)
-            response["initial_state"] = {
+        actions = reorder_lerobot_action(action_lerobot=actions_lerobot, dataset=self._dataset_root)
+        states = LU.get_episode_states(self._dataset_root, episode_index)
+        return {
+            "actions": actions.astype(np.float32),
+            "done": True,
+            "initial_state": {
                 "states": states[0],
                 "model": LU.get_episode_model_xml(self._dataset_root, episode_index),
                 "ep_meta": json.dumps(LU.get_episode_meta(self._dataset_root, episode_index)),
-            }
-        return response
+            },
+        }
 
 
 def _pack_array(obj):
@@ -176,7 +146,6 @@ def main(args: Args) -> None:
         dataset_repo_id=args.dataset_repo_id,
         host=args.host,
         port=args.port,
-        chunk_size=args.chunk_size,
     )
     server.serve_forever()
 

@@ -29,15 +29,12 @@ class Args:
     """Host to bind the replay websocket server"""
     port: int = 8000
     """Port to bind the replay websocket server"""
-    chunk_size: int = 200
-    """Number of actions returned per action_chunk request"""
 
 
 class ReplayRecordingServer:
-    def __init__(self, recordings_dir: str, host: str, port: int, chunk_size: int):
+    def __init__(self, recordings_dir: str, host: str, port: int):
         self._host = host
         self._port = port
-        self._default_chunk_size = chunk_size
 
         recordings_path = Path(recordings_dir)
         if not recordings_path.is_dir():
@@ -63,7 +60,6 @@ class ReplayRecordingServer:
             "type": "replay_recording",
             "recordings_dir": recordings_dir,
             "num_episodes": len(self._episodes),
-            "default_chunk_size": chunk_size,
             "env_meta": self._episodes[0]["env_meta"],
         }
         self._packer = msgpack.Packer(default=_pack_array)
@@ -82,7 +78,6 @@ class ReplayRecordingServer:
     def _handle_connection(self, websocket) -> None:
         websocket.send(self._packer.pack(self._metadata))
         episode_index = 0
-        step_index = 0
         while True:
             payload = websocket.recv()
             if isinstance(payload, str):
@@ -90,33 +85,20 @@ class ReplayRecordingServer:
                 continue
 
             try:
-                request = msgpack.unpackb(payload, object_hook=_unpack_array)
-                response = self._infer(request, episode_index, step_index)
-                step_index += int(response.get("chunk_size", 0))
-                if response.get("done"):
-                    episode_index = (episode_index + 1) % len(self._episodes)
-                    step_index = 0
+                msgpack.unpackb(payload, object_hook=_unpack_array)
+                response = self._infer(episode_index)
+                episode_index = (episode_index + 1) % len(self._episodes)
                 websocket.send(self._packer.pack(response))
             except Exception as exc:
                 websocket.send(str(exc))
 
-    def _infer(self, request: dict[str, Any], episode_index: int, step_index: int) -> dict[str, Any]:
+    def _infer(self, episode_index: int) -> dict[str, Any]:
         episode = self._episodes[episode_index]
-        actions = episode["actions"]
-
-        if step_index == len(actions):
-            return {"actions": np.empty((0, 0), dtype=np.float32), "done": True}
-
-        frame_to = min(step_index + self._default_chunk_size, len(actions))
-        chunk = actions[step_index:frame_to]
-        response: dict[str, Any] = {
-            "actions": chunk,
-            "chunk_size": np.int32(len(chunk)),
-            "done": frame_to >= len(actions),
+        return {
+            "actions": episode["actions"],
+            "done": True,
+            "initial_state": episode["initial_state"],
         }
-        if step_index == 0:
-            response["initial_state"] = episode["initial_state"]
-        return response
 
 
 def _pack_array(obj):
@@ -168,7 +150,6 @@ def main(args: Args) -> None:
         recordings_dir=args.recordings_dir,
         host=args.host,
         port=args.port,
-        chunk_size=args.chunk_size,
     )
     server.serve_forever()
 
