@@ -184,6 +184,15 @@ def _upload_to_hf(dataset_root: Path, repo_id: str, private: bool) -> None:
         commit_message="Upload LeRobot v3 dataset converted from raw recordings",
     )
 
+    with (dataset_root / "meta" / "info.json").open("r", encoding="utf-8") as f:
+        codebase_version = json.load(f)["codebase_version"]
+    api.create_tag(
+        repo_id=repo_id,
+        repo_type="dataset",
+        tag=codebase_version,
+        exist_ok=True,
+    )
+
 
 def _build_dataset(args: "Args") -> Path:
     recordings_dir = Path(args.recordings_dir)
